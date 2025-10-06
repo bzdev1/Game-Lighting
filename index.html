@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Lighting Simulator - Professional Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 255, 255, 0.1);
+            border-top: 4px solid #0ff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #loading p {
+            color: #0ff;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        /* Moved control panel to bottom instead of right side */
+        #control-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 40vh;
+            background: linear-gradient(180deg, rgba(15, 15, 25, 0.98) 0%, rgba(10, 10, 20, 0.98) 100%);
+            border-top: 2px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 -5px 30px rgba(0, 0, 0, 0.8);
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+        
+        #control-panel.panel-hidden {
+            transform: translateY(100%);
+        }
+        
+        #control-panel::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        #control-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        #control-panel::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 255, 0.5);
+            border-radius: 4px;
+        }
+        
+        /* Added unified tab system for all controls */
+        .control-tabs {
+            display: flex;
+            background: rgba(0, 0, 0, 0.5);
+            border-bottom: 2px solid rgba(0, 255, 255, 0.3);
+        }
+        
+        .control-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+            border-right: 1px solid rgba(0, 255, 255, 0.2);
+            transition: all 0.3s;
+        }
+        
+        .control-tab:last-child {
+            border-right: none;
+        }
+        
+        .control-tab:hover {
+            background: rgba(0, 255, 255, 0.1);
+            color: #0ff;
+        }
+        
+        .control-tab.active {
+            background: rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            border-bottom: 3px solid #0ff;
+        }
+        
+        .control-content {
+            display: none;
+            padding: 15px;
+            height: calc(40vh - 50px);
+            overflow-y: auto;
+        }
+        
+        .control-content.active {
+            display: block;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(0, 255, 255, 0.3);
+        }
+        .section-header h2 {
+            font-size: 18px;
+            color: #0ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+        .section-header p {
+            font-size: 10px;
+            color: #888;
+        }
+
+        /* Added master control styles */
+        .master-controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .control-box {
+            background: linear-gradient(135deg, rgba(30, 30, 45, 0.9) 0%, rgba(20, 20, 35, 0.9) 100%);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+        }
+        
+        .control-box h3 {
+            color: #0ff;
+            font-size: 13px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        
+        .control-label {
+            color: #aaa;
+            font-size: 11px;
+            min-width: 100px;
+        }
+        
+        .control-input {
+            flex: 1;
+            height: 6px;
+            background: rgba(0, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .control-input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #0ff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .control-value {
+            color: #0ff;
+            font-size: 11px;
+            min-width: 50px;
+            text-align: right;
+            font-weight: 600;
+        }
+        
+        .blackout-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #ff0000 0%, #aa0000 100%);
+            border: 2px solid #ff0000;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3);
+        }
+        
+        .blackout-btn:hover {
+            box-shadow: 0 6px 25px rgba(255, 0, 0, 0.6);
+            transform: translateY(-2px);
+        }
+        
+        .blackout-btn.active {
+            background: linear-gradient(135deg, #00ff00 0%, #00aa00 100%);
+            border-color: #00ff00;
+        }
+
+        /* Added effects grid styles */
+        .effects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        
+        .effect-btn {
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(30, 30, 45, 0.9) 0%, rgba(20, 20, 35, 0.9) 100%);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            color: #0ff;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .effect-btn:hover {
+            border-color: #0ff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .effect-btn.active {
+            background: linear-gradient(135deg, #0ff 0%, #0aa 100%);
+            color: #000;
+            border-color: #0ff;
+        }
+
+        /* Mixer channel styles */
+        .lights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        
+        .mixer-channel {
+            background: linear-gradient(135deg, rgba(30, 30, 45, 0.9) 0%, rgba(20, 20, 35, 0.9) 100%);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .mixer-channel:hover {
+            border-color: rgba(0, 255, 255, 0.5);
+            box-shadow: 0 4px 20px rgba(0, 255, 255, 0.2);
+        }
+        
+        .mixer-channel h4 {
+            margin-bottom: 10px;
+            color: #0ff;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .fader-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .fader-label {
+            color: #888;
+            font-size: 10px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .fader {
+            -webkit-appearance: slider-vertical;
+            width: 8px;
+            height: 100px;
+            background: rgba(0, 255, 255, 0.1);
+            border-radius: 4px;
+            outline: none;
+            margin: 5px 0;
+        }
+        
+        .fader::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #0ff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .fader-value {
+            color: #0ff;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        /* Rig settings styles */
+        .rig-settings {
+            background: linear-gradient(135deg, rgba(30, 30, 45, 0.9) 0%, rgba(20, 20, 35, 0.9) 100%);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .rig-settings h3 {
+            color: #0ff;
+            font-size: 14px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .setting-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        
+        .setting-label {
+            color: #aaa;
+            font-size: 11px;
+            min-width: 120px;
+        }
+        
+        .setting-input {
+            flex: 1;
+        }
+        
+        .setting-input[type="range"] {
+            height: 6px;
+            background: rgba(0, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .setting-input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #0ff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .setting-input[type="color"] {
+            width: 60px;
+            height: 30px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Light editor styles */
+        .light-editor {
+            background: linear-gradient(135deg, rgba(30, 30, 45, 0.9) 0%, rgba(20, 20, 35, 0.9) 100%);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+        }
+        
+        .light-editor h3 {
+            color: #0ff;
+            font-size: 14px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .light-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        
+        .light-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .light-item span {
+            color: #0ff;
+            font-size: 11px;
+        }
+        
+        .light-item button {
+            padding: 5px 10px;
+            background: rgba(255, 0, 0, 0.3);
+            border: 1px solid #f00;
+            color: #f00;
+            font-size: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .light-item button:hover {
+            background: rgba(255, 0, 0, 0.5);
+        }
+        
+        .btn-add {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, rgba(0, 170, 170, 0.2) 100%);
+            border: 2px solid #0ff;
+            color: #0ff;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-add:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.4) 0%, rgba(0, 170, 170, 0.4) 100%);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Camera control styles */
+        .camera-controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        
+        .camera-btn {
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(30, 30, 45, 0.9) 0%, rgba(20, 20, 35, 0.9) 100%);
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            color: #0ff;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .camera-btn:hover {
+            border-color: #0ff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        
+        .camera-btn.active {
+            background: linear-gradient(135deg, #00ff88 0%, #00aa55 100%);
+            border-color: #0f0;
+            color: #000;
+        }
+
+        #info {
+            position: fixed;
+            bottom: calc(40vh + 10px);
+            left: 15px;
+            font-size: 11px;
+            color: #666;
+            z-index: 50;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+        }
+        
+        .shortcuts {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: linear-gradient(135deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 20, 0.95) 100%);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            z-index: 50;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+        
+        .shortcuts h3 {
+            color: #0ff;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .shortcuts div {
+            margin: 4px 0;
+            color: #aaa;
+        }
+        
+        .shortcuts kbd {
+            background: rgba(0, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #0ff;
+            font-family: monospace;
+            font-size: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        #toggle-buttons {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 150;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .toggle-btn {
+            padding: 10px 15px;
+            background: linear-gradient(135deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 20, 0.95) 100%);
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            color: #0ff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .toggle-btn:hover {
+            border-color: #0ff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        
+        .toggle-btn.active {
+            background: linear-gradient(135deg, #00ff88 0%, #00aa55 100%);
+            border-color: #0f0;
+            color: #000;
+        }
+        
+        @media (max-width: 768px) {
+            #control-panel {
+                height: 50vh;
+            }
+            
+            .control-content {
+                height: calc(50vh - 50px);
+            }
+            
+            .lights-grid {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            }
+            
+            .shortcuts {
+                display: none;
+            }
+            
+            #info {
+                font-size: 10px;
+                padding: 6px 10px;
+                bottom: calc(50vh + 10px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Loading 3D Lighting Simulator...</p>
+    </div>
+    
+    <div id="canvas-container"></div>
+    
+    <div id="toggle-buttons">
+        <button class="toggle-btn active" id="toggle-panel">Controls</button>
+        <button class="toggle-btn active" id="toggle-gui">GUI</button>
+    </div>
+    
+    <div class="shortcuts">
+        <h3>Shortcuts</h3>
+        <div><kbd>H</kbd> Hide/Show Controls</div>
+        <div><kbd>G</kbd> Hide/Show GUI</div>
+        <div><kbd>F</kbd> Lock/Unlock Camera</div>
+        <div><kbd>B</kbd> Blackout</div>
+        <div><kbd>R</kbd> Reset View</div>
+    </div>
+    
+     Unified control panel at bottom with all features 
+    <div id="control-panel">
+        <div class="control-tabs">
+            <div class="control-tab active" data-tab="master">Master</div>
+            <div class="control-tab" data-tab="lights">Lights</div>
+            <div class="control-tab" data-tab="effects">Effects</div>
+            <div class="control-tab" data-tab="rig">Rig</div>
+            <div class="control-tab" data-tab="camera">Camera</div>
+            <div class="control-tab" data-tab="editor">Editor</div>
+        </div>
+        
+        <div class="control-content active" id="master-content">
+            <div class="section-header">
+                <h2>Master Control</h2>
+                <p>Global Settings & Quick Controls</p>
+            </div>
+            <div class="master-controls-grid">
+                <div class="control-box">
+                    <h3>Grand Master</h3>
+                    <div class="control-row">
+                        <span class="control-label">Intensity</span>
+                        <input type="range" class="control-input" id="grand-master" min="0" max="100" value="100">
+                        <span class="control-value" id="grand-master-value">100%</span>
+                    </div>
+                </div>
+                <div class="control-box">
+                    <h3>Speed Control</h3>
+                    <div class="control-row">
+                        <span class="control-label">Speed</span>
+                        <input type="range" class="control-input" id="master-speed" min="0" max="300" value="100">
+                        <span class="control-value" id="master-speed-value">100%</span>
+                    </div>
+                </div>
+                <div class="control-box">
+                    <h3>Strobe</h3>
+                    <div class="control-row">
+                        <span class="control-label">Rate</span>
+                        <input type="range" class="control-input" id="strobe-rate" min="1" max="30" value="10">
+                        <span class="control-value" id="strobe-rate-value">10Hz</span>
+                    </div>
+                </div>
+            </div>
+            <button class="blackout-btn" id="blackout-btn">BLACKOUT</button>
+        </div>
+        
+        <div class="control-content" id="lights-content">
+            <div class="section-header">
+                <h2>Lighting Mixer</h2>
+                <p>Individual Light Control</p>
+            </div>
+            <div class="lights-grid" id="lights-container"></div>
+        </div>
+        
+        <div class="control-content" id="effects-content">
+            <div class="section-header">
+                <h2>Effect Library</h2>
+                <p>30+ Professional Effects</p>
+            </div>
+            <div class="effects-grid" id="effects-grid"></div>
+        </div>
+        
+        <div class="control-content" id="rig-content">
+            <div class="section-header">
+                <h2>Rig Settings</h2>
+                <p>Customize Your Lighting Rig</p>
+            </div>
+            <div class="rig-settings">
+                <h3>Truss Appearance</h3>
+                <div class="setting-row">
+                    <span class="setting-label">Color</span>
+                    <input type="color" class="setting-input" id="truss-color" value="#555555">
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">Metalness</span>
+                    <input type="range" class="setting-input" id="truss-metalness" min="0" max="100" value="90">
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">Roughness</span>
+                    <input type="range" class="setting-input" id="truss-roughness" min="0" max="100" value="50">
+                </div>
+            </div>
+            <div class="rig-settings">
+                <h3>Formation Info</h3>
+                <div class="setting-row">
+                    <span class="setting-label">Total Lights</span>
+                    <span class="setting-input" style="text-align: center; color: #0ff;" id="total-lights">15</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">Top Line</span>
+                    <span class="setting-input" style="text-align: center; color: #888;">4 lights</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">Left C-Shape</span>
+                    <span class="setting-input" style="text-align: center; color: #888;">4 lights</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">Right C-Shape</span>
+                    <span class="setting-input" style="text-align: center; color: #888;">4 lights</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">Center Curve</span>
+                    <span class="setting-input" style="text-align: center; color: #888;">3 lights</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-content" id="camera-content">
+            <div class="section-header">
+                <h2>Camera Control</h2>
+                <p>View & Navigation Settings</p>
+            </div>
+            <div class="camera-controls-grid">
+                <button class="camera-btn" id="camera-lock-btn">Lock Camera</button>
+                <button class="camera-btn" id="camera-reset-btn">Reset View</button>
+                <button class="camera-btn" id="camera-top-btn">Top View</button>
+                <button class="camera-btn" id="camera-front-btn">Front View</button>
+                <button class="camera-btn" id="camera-side-btn">Side View</button>
+            </div>
+        </div>
+        
+        <div class="control-content" id="editor-content">
+            <div class="section-header">
+                <h2>Light Editor</h2>
+                <p>Add, Remove & Position Lights</p>
+            </div>
+            <div class="light-editor">
+                <h3>Light List</h3>
+                <div class="light-list" id="light-list"></div>
+                <button class="btn-add" id="add-light-btn">+ Add New Light</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="info">
+        Drag: Orbit | Scroll: Zoom | Right-Click: Pan
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
+        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js';
+        import { GUI } from 'https://cdn.skypack.dev/lil-gui@0.19.1';
+        import { EffectComposer } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/postprocessing/UnrealBloomPass.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+        scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 35);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.6;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Post-processing
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            0.6,
+            0.4,
+            0.85
+        );
+        composer.addPass(bloomPass);
+
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 10;
+        controls.maxDistance = 100;
+        controls.maxPolarAngle = Math.PI / 2;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+        scene.add(ambientLight);
+
+        // Floor
+        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x111111,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Parameters
+        const params = {
+            effect: 'Circle',
+            speed: 1.0,
+            beamIntensity: 0.6,
+            beamWidth: 0.3,
+            color: '#00ffff',
+            grandMaster: 1.0,
+            strobeRate: 10,
+            blackout: false
+        };
+
+        const effects = [
+            'Circle', 'Wave', 'Random', 'Strobe', 'Chase', 'Pulse', 'Spiral',
+            'Scanner', 'Color Fade', 'Color Chase', 'Beam Sync', 'Bounce',
+            'Alternate', 'Twinkle', 'Formation Chase', 'Laser Sweep',
+            'Rainbow', 'Fire', 'Ocean', 'Matrix', 'Sparkle', 'Breathe',
+            'Random Color', 'Random Position', 'Random Intensity', 'Chaos',
+            'Sync All', 'Mirror', 'Invert', 'Flash'
+        ];
+
+        // Moving heads array
+        const movingHeads = [];
+        const LIGHT_COUNT = 15;
+
+        // Create moving head light
+        function createMovingHead(x, y, z, name) {
+            const group = new THREE.Group();
+            
+            // Base
+            const baseGeometry = new THREE.CylinderGeometry(0.3, 0.4, 0.2, 16);
+            const baseMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                metalness: 0.8,
+                roughness: 0.2
+            });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.castShadow = true;
+            group.add(base);
+            
+            // Head
+            const headGeometry = new THREE.CylinderGeometry(0.25, 0.3, 0.5, 16);
+            const headMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333333,
+                metalness: 0.7,
+                roughness: 0.3
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 0.35;
+            head.castShadow = true;
+            group.add(head);
+            
+            // Lens
+            const lensGeometry = new THREE.CircleGeometry(0.15, 16);
+            const lensMaterial = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.8
+            });
+            const lens = new THREE.Mesh(lensGeometry, lensMaterial);
+            lens.position.set(0, 0.35, 0.26);
+            group.add(lens);
+            
+            // Spotlight
+            const spotlight = new THREE.SpotLight(0xffffff, 35, 50, Math.PI / 6, 0.5, 2);
+            spotlight.position.set(0, 0.35, 0);
+            spotlight.castShadow = true;
+            spotlight.shadow.mapSize.width = 1024;
+            spotlight.shadow.mapSize.height = 1024;
+            group.add(spotlight);
+            
+            // Beam geometry
+            const beamGeometry = new THREE.CylinderGeometry(0.1, 2, 20, 16, 1, true);
+            const beamMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    color: { value: new THREE.Color(0x00ffff) },
+                    intensity: { value: 1.0 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 color;
+                    uniform float intensity;
+                    varying vec2 vUv;
+                    void main() {
+                        float alpha = (1.0 - vUv.y) * 0.6 * intensity;
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const beam = new THREE.Mesh(beamGeometry, beamMaterial);
+            beam.position.set(0, 0.35, -10);
+            beam.rotation.x = Math.PI / 2;
+            group.add(beam);
+            
+            group.position.set(x, y, z);
+            group.userData = {
+                spotlight,
+                beam,
+                beamMaterial,
+                head,
+                name,
+                pan: 0,
+                tilt: 0,
+                intensity: 1.0,
+                color: new THREE.Color(0x00ffff)
+            };
+            
+            return group;
+        }
+
+        function createMultiFormationLights() {
+            const lights = [];
+            
+            // Top horizontal line - 4 lights
+            for (let i = 0; i < 4; i++) {
+                const x = (i - 1.5) * 6;
+                const mh = createMovingHead(x, 12, 0, `Top-${i + 1}`);
+                lights.push(mh);
+                scene.add(mh);
+            }
+            
+            // Left C-shape - 4 lights
+            const leftCPositions = [
+                { x: -12, z: 2 },
+                { x: -13, z: 0 },
+                { x: -13, z: -2 },
+                { x: -12, z: -4 }
+            ];
+            leftCPositions.forEach((pos, i) => {
+                const mh = createMovingHead(pos.x, 10, pos.z, `Left-C-${i + 1}`);
+                lights.push(mh);
+                scene.add(mh);
+            });
+            
+            // Right C-shape - 4 lights
+            const rightCPositions = [
+                { x: 12, z: 2 },
+                { x: 13, z: 0 },
+                { x: 13, z: -2 },
+                { x: 12, z: -4 }
+            ];
+            rightCPositions.forEach((pos, i) => {
+                const mh = createMovingHead(pos.x, 10, pos.z, `Right-C-${i + 1}`);
+                lights.push(mh);
+                scene.add(mh);
+            });
+            
+            // Center curved - 3 lights
+            const centerPositions = [
+                { x: -3, z: -6 },
+                { x: 0, z: -7 },
+                { x: 3, z: -6 }
+            ];
+            centerPositions.forEach((pos, i) => {
+                const mh = createMovingHead(pos.x, 9, pos.z, `Center-${i + 1}`);
+                lights.push(mh);
+                scene.add(mh);
+            });
+            
+            return lights;
+        }
+
+        // Create truss system
+        function createMultiFormationTruss() {
+            const trussGroup = new THREE.Group();
+            const trussMaterial = new THREE.MeshStandardMaterial({
+                color: 0x555555,
+                metalness: 0.9,
+                roughness: 0.5
+            });
+            
+            // Top horizontal truss
+            const topTruss = new THREE.Mesh(
+                new THREE.BoxGeometry(25, 0.3, 0.3),
+                trussMaterial
+            );
+            topTruss.position.set(0, 13, 0);
+            topTruss.castShadow = true;
+            trussGroup.add(topTruss);
+            
+            // Left C-shape truss
+            const leftTruss1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 8), trussMaterial);
+            leftTruss1.position.set(-12.5, 10, -1);
+            leftTruss1.castShadow = true;
+            trussGroup.add(leftTruss1);
+            
+            // Right C-shape truss
+            const rightTruss1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 8), trussMaterial);
+            rightTruss1.position.set(12.5, 10, -1);
+            rightTruss1.castShadow = true;
+            trussGroup.add(rightTruss1);
+            
+            // Center curved truss
+            const centerTruss = new THREE.Mesh(new THREE.BoxGeometry(8, 0.3, 0.3), trussMaterial);
+            centerTruss.position.set(0, 9, -6.5);
+            centerTruss.castShadow = true;
+            trussGroup.add(centerTruss);
+            
+            trussGroup.userData.material = trussMaterial;
+            return trussGroup;
+        }
+
+        // Initialize lights and truss
+        movingHeads.push(...createMultiFormationLights());
+        const trussSystem = createMultiFormationTruss();
+        scene.add(trussSystem);
+
+        // Create mixer channels
+        function createMixerChannels() {
+            const container = document.getElementById('lights-container');
+            container.innerHTML = '';
+            
+            movingHeads.forEach((mh, index) => {
+                const channel = document.createElement('div');
+                channel.className = 'mixer-channel';
+                channel.innerHTML = `
+                    <h4>${mh.userData.name}</h4>
+                    <div class="fader-container">
+                        <span class="fader-label">Intensity</span>
+                        <input type="range" class="fader" min="0" max="100" value="100" orient="vertical" data-light="${index}" data-param="intensity">
+                        <span class="fader-value">100%</span>
+                    </div>
+                    <div class="fader-container">
+                        <span class="fader-label">Pan</span>
+                        <input type="range" class="fader" min="-180" max="180" value="0" orient="vertical" data-light="${index}" data-param="pan">
+                        <span class="fader-value">0°</span>
+                    </div>
+                    <div class="fader-container">
+                        <span class="fader-label">Tilt</span>
+                        <input type="range" class="fader" min="-90" max="90" value="0" orient="vertical" data-light="${index}" data-param="tilt">
+                        <span class="fader-value">0°</span>
+                    </div>
+                `;
+                container.appendChild(channel);
+            });
+            
+            // Add event listeners
+            document.querySelectorAll('.fader').forEach(fader => {
+                fader.addEventListener('input', (e) => {
+                    const lightIndex = parseInt(e.target.dataset.light);
+                    const param = e.target.dataset.param;
+                    const value = parseFloat(e.target.value);
+                    const valueSpan = e.target.nextElementSibling;
+                    
+                    if (param === 'intensity') {
+                        movingHeads[lightIndex].userData.intensity = value / 100;
+                        valueSpan.textContent = `${value}%`;
+                    } else if (param === 'pan') {
+                        movingHeads[lightIndex].userData.pan = value * Math.PI / 180;
+                        valueSpan.textContent = `${value}°`;
+                    } else if (param === 'tilt') {
+                        movingHeads[lightIndex].userData.tilt = value * Math.PI / 180;
+                        valueSpan.textContent = `${value}°`;
+                    }
+                });
+            });
+        }
+
+        function createEffectsGrid() {
+            const grid = document.getElementById('effects-grid');
+            grid.innerHTML = '';
+            
+            effects.forEach(effect => {
+                const btn = document.createElement('button');
+                btn.className = 'effect-btn';
+                btn.textContent = effect;
+                if (effect === params.effect) {
+                    btn.classList.add('active');
+                }
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.effect-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    params.effect = effect;
+                });
+                grid.appendChild(btn);
+            });
+        }
+
+        // Update light editor
+        function updateLightEditor() {
+            const list = document.getElementById('light-list');
+            list.innerHTML = '';
+            
+            movingHeads.forEach((mh, index) => {
+                const item = document.createElement('div');
+                item.className = 'light-item';
+                item.innerHTML = `
+                    <span>${mh.userData.name}</span>
+                    <button onclick="removeLight(${index})">Remove</button>
+                `;
+                list.appendChild(item);
+            });
+            
+            document.getElementById('total-lights').textContent = movingHeads.length;
+        }
+
+        // Add light function
+        window.addLight = function() {
+            const x = (Math.random() - 0.5) * 20;
+            const y = 8 + Math.random() * 4;
+            const z = (Math.random() - 0.5) * 20;
+            const name = `Light-${movingHeads.length + 1}`;
+            const mh = createMovingHead(x, y, z, name);
+            movingHeads.push(mh);
+            scene.add(mh);
+            createMixerChannels();
+            updateLightEditor();
+        };
+
+        // Remove light function
+        window.removeLight = function(index) {
+            if (movingHeads.length > 1) {
+                const mh = movingHeads[index];
+                scene.remove(mh);
+                movingHeads.splice(index, 1);
+                createMixerChannels();
+                updateLightEditor();
+            }
+        };
+
+        // Setup controls
+        function setupControls() {
+            // Tab switching
+            document.querySelectorAll('.control-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.control-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.control-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`${tab.dataset.tab}-content`).classList.add('active');
+                });
+            });
+            
+            // Grand master
+            const grandMaster = document.getElementById('grand-master');
+            const grandMasterValue = document.getElementById('grand-master-value');
+            grandMaster.addEventListener('input', (e) => {
+                params.grandMaster = e.target.value / 100;
+                grandMasterValue.textContent = `${e.target.value}%`;
+            });
+            
+            // Speed
+            const masterSpeed = document.getElementById('master-speed');
+            const masterSpeedValue = document.getElementById('master-speed-value');
+            masterSpeed.addEventListener('input', (e) => {
+                params.speed = e.target.value / 100;
+                masterSpeedValue.textContent = `${e.target.value}%`;
+            });
+            
+            // Strobe rate
+            const strobeRate = document.getElementById('strobe-rate');
+            const strobeRateValue = document.getElementById('strobe-rate-value');
+            strobeRate.addEventListener('input', (e) => {
+                params.strobeRate = e.target.value;
+                strobeRateValue.textContent = `${e.target.value}Hz`;
+            });
+            
+            // Blackout
+            const blackoutBtn = document.getElementById('blackout-btn');
+            blackoutBtn.addEventListener('click', () => {
+                params.blackout = !params.blackout;
+                blackoutBtn.classList.toggle('active');
+                blackoutBtn.textContent = params.blackout ? 'LIGHTS ON' : 'BLACKOUT';
+            });
+            
+            // Truss color
+            document.getElementById('truss-color').addEventListener('input', (e) => {
+                trussSystem.userData.material.color.set(e.target.value);
+            });
+            
+            document.getElementById('truss-metalness').addEventListener('input', (e) => {
+                trussSystem.userData.material.metalness = e.target.value / 100;
+            });
+            
+            document.getElementById('truss-roughness').addEventListener('input', (e) => {
+                trussSystem.userData.material.roughness = e.target.value / 100;
+            });
+            
+            // Camera controls
+            let cameraLocked = false;
+            document.getElementById('camera-lock-btn').addEventListener('click', () => {
+                cameraLocked = !cameraLocked;
+                controls.enabled = !cameraLocked;
+                document.getElementById('camera-lock-btn').classList.toggle('active');
+                document.getElementById('camera-lock-btn').textContent = cameraLocked ? 'Unlock Camera' : 'Lock Camera';
+            });
+            
+            document.getElementById('camera-reset-btn').addEventListener('click', () => {
+                camera.position.set(0, 15, 35);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            });
+            
+            document.getElementById('camera-top-btn').addEventListener('click', () => {
+                camera.position.set(0, 40, 0);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            });
+            
+            document.getElementById('camera-front-btn').addEventListener('click', () => {
+                camera.position.set(0, 10, 40);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            });
+            
+            document.getElementById('camera-side-btn').addEventListener('click', () => {
+                camera.position.set(40, 10, 0);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            });
+            
+            // Add light button
+            document.getElementById('add-light-btn').addEventListener('click', addLight);
+            
+            // Toggle buttons
+            const togglePanel = document.getElementById('toggle-panel');
+            const toggleGUI = document.getElementById('toggle-gui');
+            const controlPanel = document.getElementById('control-panel');
+            
+            togglePanel.addEventListener('click', () => {
+                controlPanel.classList.toggle('panel-hidden');
+                togglePanel.classList.toggle('active');
+            });
+            
+            toggleGUI.addEventListener('click', () => {
+                if (gui.domElement.style.display === 'none') {
+                    gui.domElement.style.display = 'block';
+                    toggleGUI.classList.add('active');
+                } else {
+                    gui.domElement.style.display = 'none';
+                    toggleGUI.classList.remove('active');
+                }
+            });
+        }
+
+        // GUI
+        const gui = new GUI();
+        gui.add(params, 'effect', effects);
+        gui.add(params, 'speed', 0, 3, 0.1);
+        gui.add(params, 'beamIntensity', 0, 2, 0.1);
+        gui.add(params, 'beamWidth', 0.1, 1, 0.1);
+        gui.addColor(params, 'color');
+
+        // Animation
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.016 * params.speed;
+            
+            if (!params.blackout) {
+                movingHeads.forEach((mh, i) => {
+                    const userData = mh.userData;
+                    let targetPan = userData.pan;
+                    let targetTilt = userData.tilt;
+                    
+                    switch (params.effect) {
+                        case 'Circle':
+                            targetPan = Math.sin(time + i * 0.5) * 0.8;
+                            targetTilt = Math.cos(time + i * 0.5) * 0.5;
+                            break;
+                        case 'Wave':
+                            targetPan = Math.sin(time + i * 0.3) * 0.6;
+                            targetTilt = Math.sin(time * 2) * 0.4;
+                            break;
+                        case 'Random':
+                            if (Math.random() < 0.02) {
+                                targetPan = (Math.random() - 0.5) * 1.5;
+                                targetTilt = (Math.random() - 0.5) * 1.0;
+                            }
+                            break;
+                        case 'Random Color':
+                            if (Math.random() < 0.05) {
+                                userData.color.setHSL(Math.random(), 1, 0.5);
+                            }
+                            break;
+                        case 'Random Position':
+                            if (Math.random() < 0.03) {
+                                targetPan = (Math.random() - 0.5) * 2;
+                                targetTilt = (Math.random() - 0.5) * 1.5;
+                            }
+                            break;
+                        case 'Random Intensity':
+                            userData.intensity = 0.3 + Math.random() * 0.7;
+                            break;
+                        case 'Chaos':
+                            targetPan = Math.sin(time * (1 + i * 0.1)) * Math.random();
+                            targetTilt = Math.cos(time * (1 + i * 0.1)) * Math.random();
+                            if (Math.random() < 0.1) {
+                                userData.color.setHSL(Math.random(), 1, 0.5);
+                            }
+                            break;
+                        case 'Strobe':
+                            userData.intensity = Math.sin(time * params.strobeRate) > 0 ? 1 : 0;
+                            break;
+                        case 'Chase':
+                            userData.intensity = (Math.floor(time * 2) % movingHeads.length) === i ? 1 : 0.2;
+                            break;
+                        case 'Pulse':
+                            userData.intensity = (Math.sin(time * 2) + 1) / 2;
+                            break;
+                        case 'Spiral':
+                            targetPan = Math.sin(time + i * 0.4) * (1 - i / movingHeads.length);
+                            targetTilt = Math.cos(time + i * 0.4) * (1 - i / movingHeads.length);
+                            break;
+                        case 'Scanner':
+                            targetPan = Math.sin(time * 3) * 1.2;
+                            targetTilt = 0;
+                            break;
+                        case 'Bounce':
+                            targetTilt = Math.abs(Math.sin(time + i * 0.2)) * 0.8;
+                            break;
+                        case 'Alternate':
+                            userData.intensity = i % 2 === Math.floor(time) % 2 ? 1 : 0.2;
+                            break;
+                        case 'Twinkle':
+                            userData.intensity = Math.random() > 0.7 ? 1 : 0.3;
+                            break;
+                        case 'Rainbow':
+                            userData.color.setHSL((time * 0.1 + i / movingHeads.length) % 1, 1, 0.5);
+                            break;
+                        case 'Sparkle':
+                            userData.intensity = Math.random() > 0.8 ? 1 : 0.1;
+                            break;
+                        case 'Breathe':
+                            userData.intensity = (Math.sin(time) + 1) / 2;
+                            break;
+                        case 'Mirror':
+                            targetPan = i < movingHeads.length / 2 ? Math.sin(time) : -Math.sin(time);
+                            break;
+                        case 'Sync All':
+                            targetPan = Math.sin(time) * 0.8;
+                            targetTilt = Math.cos(time) * 0.5;
+                            break;
+                    }
+                    
+                    // Apply movement
+                    userData.head.rotation.y = targetPan;
+                    userData.head.rotation.x = targetTilt;
+                    
+                    // Update spotlight
+                    const finalIntensity = userData.intensity * params.grandMaster * 35;
+                    userData.spotlight.intensity = finalIntensity;
+                    userData.spotlight.color.copy(userData.color);
+                    
+                    // Update beam
+                    userData.beamMaterial.uniforms.color.value.copy(userData.color);
+                    userData.beamMaterial.uniforms.intensity.value = userData.intensity * params.grandMaster * params.beamIntensity;
+                    
+                    // Update spotlight direction
+                    const direction = new THREE.Vector3(
+                        Math.sin(targetPan),
+                        -Math.sin(targetTilt),
+                        -Math.cos(targetPan) * Math.cos(targetTilt)
+                    );
+                    userData.spotlight.target.position.copy(mh.position).add(direction.multiplyScalar(10));
+                    scene.add(userData.spotlight.target);
+                });
+            } else {
+                movingHeads.forEach(mh => {
+                    mh.userData.spotlight.intensity = 0;
+                    mh.userData.beamMaterial.uniforms.intensity.value = 0;
+                });
+            }
+            
+            controls.update();
+            composer.render();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            switch(e.key.toLowerCase()) {
+                case 'h':
+                    document.getElementById('toggle-panel').click();
+                    break;
+                case 'g':
+                    document.getElementById('toggle-gui').click();
+                    break;
+                case 'f':
+                    document.getElementById('camera-lock-btn').click();
+                    break;
+                case 'b':
+                    document.getElementById('blackout-btn').click();
+                    break;
+                case 'r':
+                    document.getElementById('camera-reset-btn').click();
+                    break;
+            }
+        });
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        createMixerChannels();
+        createEffectsGrid();
+        updateLightEditor();
+        setupControls();
+        
+        // Hide loading screen
+        setTimeout(() => {
+            document.getElementById('loading').style.display = 'none';
+            animate();
+        }, 1000);
+    </script>
+</body>
+</html>
